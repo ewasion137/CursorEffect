@@ -1,7 +1,6 @@
 #pragma once
 #include <string>
 
-// Структура цвета RGBA (0.0f - 1.0f)
 struct ColorRGBA {
     float r = 0.0f;
     float g = 0.7f;
@@ -10,22 +9,23 @@ struct ColorRGBA {
 };
 
 struct Settings {
+    // --- Режим работы ---
+    // "dot" = классическая геометрическая точка
+    // "sprite" = картинка PNG/JPG
+    std::string mode = "dot";
+    std::string spriteFile = "texture.png"; // Имя файла в папке ~/.cureff/
+
     // --- Общие ---
-    std::string activeSkin = "dot";
     float maxFps = 120.0f;
     bool trailEnabled = true;
+    float stepDistance = 6.0f;
+    float particleLife = 0.45f;
 
-    // --- Спавн ---
-    float stepDistance = 6.0f;    // Каждые N пикселей спавнить точку
-    float particleLife = 0.45f;   // Время жизни в секундах
+    // --- Размеры ---
+    float startRadius = 16.0f; // Для спрайта это половина ширины (радиус)
+    float endRadius = 0.0f;
 
-    // --- Точка (Dot) ---
-    float startRadius = 10.0f;
-    float endRadius = 0.0f;       // 0.0 = сжимается до исчезновения
-
-    // --- Градиент и цвет ---
-    // StartColor: цвет в момент рождения под курсором
-    ColorRGBA startColor = { 0.0f, 0.8f, 1.0f, 1.0f }; // Яркий циан
-    // EndColor: цвет в момент смерти перед растворением
-    ColorRGBA endColor   = { 0.0f, 0.0f, 0.8f, 1.0f }; // Глубокий синий
+    // --- Цвет и градиент (для Dot) ---
+    ColorRGBA startColor = { 0.0f, 0.8f, 1.0f, 1.0f };
+    ColorRGBA endColor   = { 0.0f, 0.0f, 0.8f, 1.0f };
 };

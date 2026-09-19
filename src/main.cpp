@@ -3,42 +3,49 @@
 #include "graphics/Renderer.h"
 #include "particles/ParticleSystem.h"
 #include <chrono>
+#include <objbase.h>
 
 int main() {
-    // 1. Инициализация и чтение конфигов (~/.cureff/settings.cfg)
+    // Инициализация COM для WIC
+    CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
+
     ConfigManager::Init();
     Settings settings = ConfigManager::Load();
 
-    // 2. Создание окна оверлея
     Window window;
-    if (!window.Init()) return -1;
+    if (!window.Init()) {
+        CoUninitialize();
+        return -1;
+    }
 
-    // 3. Инициализация Direct2D рендера
     Renderer renderer;
-    if (!renderer.Init(window.GetHwnd(), window.GetWidth(), window.GetHeight())) return -1;
+    if (!renderer.Init(window.GetHwnd(), window.GetWidth(), window.GetHeight())) {
+        CoUninitialize();
+        return -1;
+    }
 
-    // 4. Движок частиц
+    // Загружаем картинку, если режим "sprite"
+    ID2D1Bitmap* pSpriteBitmap = nullptr;
+    if (settings.mode == "sprite") {
+        std::filesystem::path texturePath = ConfigManager::GetConfigDir() / settings.spriteFile;
+        pSpriteBitmap = renderer.LoadBitmapFromFile(texturePath.wstring());
+    }
+
     ParticleSystem particleSystem(settings);
 
     POINT lastMousePos = { -1, -1 };
     auto lastTime = std::chrono::high_resolution_clock::now();
     bool running = true;
 
-    // Главный игровой цикл
     while (running) {
         window.PollEvents(running);
 
-        // Быстрый выход по кнопке ESC
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
-            break;
-        }
+        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) break;
 
-        // Расчет deltaTime
         auto currentTime = std::chrono::high_resolution_clock::now();
         float dt = std::chrono::duration<float>(currentTime - lastTime).count();
         lastTime = currentTime;
 
-        // Трекинг позиции мыши
         POINT mousePos;
         GetCursorPos(&mousePos);
 
@@ -54,21 +61,26 @@ int main() {
         }
         lastMousePos = mousePos;
 
-        // Физика и жизнь частиц
         particleSystem.Update(dt);
 
-        // Отрисовка кадра
+        // Отрисовка
         renderer.BeginDraw();
         for (const auto& particle : particleSystem.GetParticles()) {
-            renderer.DrawParticle(particle);
+            if (settings.mode == "sprite" && pSpriteBitmap) {
+                renderer.DrawParticleSprite(particle, pSpriteBitmap);
+            } else {
+                renderer.DrawParticleDot(particle);
+            }
         }
         renderer.EndDraw();
 
-        // Ограничение частоты кадров (~120 FPS)
         int sleepMs = static_cast<int>(1000.0f / settings.maxFps);
         if (sleepMs < 1) sleepMs = 1;
         Sleep(sleepMs);
     }
 
+    if (pSpriteBitmap) pSpriteBitmap->Release();
+    renderer.Cleanup();
+    CoUninitialize();
     return 0;
 }

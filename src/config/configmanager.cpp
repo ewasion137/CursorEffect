@@ -43,6 +43,8 @@ void ConfigManager::Save(const Settings& s) {
     file << "particle_life = " << s.particleLife << "\n";
     file << "start_radius = " << s.startRadius << "\n";
     file << "end_radius = " << s.endRadius << "\n";
+    file << "mode = " << s.mode << "\n";
+    file << "sprite_file = " << s.spriteFile << "\n";
     
     // Сохраняем начальный и конечный цвет для градиента (R G B A)
     file << "start_color = " << s.startColor.r << " " << s.startColor.g << " " << s.startColor.b << " " << s.startColor.a << "\n";
@@ -72,6 +74,8 @@ Settings ConfigManager::Load() {
             else if (key == "particle_life") is_line >> s.particleLife;
             else if (key == "start_radius") is_line >> s.startRadius;
             else if (key == "end_radius") is_line >> s.endRadius;
+            if (key == "mode") is_line >> s.mode;
+            else if (key == "sprite_file") is_line >> s.spriteFile;
             else if (key == "start_color") {
                 is_line >> s.startColor.r >> s.startColor.g >> s.startColor.b >> s.startColor.a;
             }
