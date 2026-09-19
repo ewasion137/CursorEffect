@@ -6,18 +6,23 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(UNICODE _UNICODE)
 
-# Автоматически находим все .cpp и .h файлы во всех папках внутри src/
-file(GLOB_RECURSE SOURCES "src/*.cpp")
-file(GLOB_RECURSE HEADERS "src/*.h")
-
-# Включаем пути поиска заголовочных файлов, чтобы писать #include "config/Settings.h"
+# Подключаем папку src для поиска заголовков
 include_directories(src)
 
-add_executable(CursorEffect ${SOURCES} ${HEADERS})
+# Явный список файлов — гарантирует 100% сборку
+set(SOURCES
+    src/main.cpp
+    src/config/ConfigManager.cpp
+    src/core/Window.cpp
+    src/graphics/Renderer.cpp
+    src/particles/ParticleSystem.cpp
+)
+
+add_executable(CursorEffect ${SOURCES})
 
 target_link_libraries(CursorEffect PRIVATE
     d2d1
     user32
     gdi32
-    shell32   # Для работы с системными папками Windows (USERPROFILE)
+    shell32
 )
