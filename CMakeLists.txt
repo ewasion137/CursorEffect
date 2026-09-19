@@ -4,10 +4,11 @@ project(CursorEffect LANGUAGES CXX)
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
-# Создаем исполняемый файл
+# Включаем Unicode для Windows API
+add_compile_definitions(UNICODE _UNICODE)
+
 add_executable(CursorEffect main.cpp)
 
-# Линкуем системные библиотеки Windows и Direct2D
 target_link_libraries(CursorEffect PRIVATE
     d2d1
     user32
