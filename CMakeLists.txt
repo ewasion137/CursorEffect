@@ -6,10 +6,8 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 add_compile_definitions(UNICODE _UNICODE)
 
-# Подключаем папку src для поиска заголовков
 include_directories(src)
 
-# Явный список файлов — гарантирует 100% сборку
 set(SOURCES
     src/main.cpp
     src/config/ConfigManager.cpp
@@ -22,7 +20,9 @@ add_executable(CursorEffect ${SOURCES})
 
 target_link_libraries(CursorEffect PRIVATE
     d2d1
+    windowscodecs # <-- WIC ДЛЯ ЗАГРУЗКИ PNG/GIF
     user32
     gdi32
     shell32
+    ole32         # <-- Для COM (WIC)
 )
