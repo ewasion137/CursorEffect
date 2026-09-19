@@ -3,10 +3,12 @@
 
 struct Particle {
     float x, y;
-    float life;         // Текущее оставшееся время
-    float maxLife;      // Исходное время жизни
+    float life;
+    float maxLife;
     float startRadius;
     float endRadius;
     ColorRGBA startColor;
     ColorRGBA endColor;
+    
+    float animTime = 0.0f; // <-- Время для смены кадров гифки
 };

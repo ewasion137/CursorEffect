@@ -1,4 +1,6 @@
 #include "Renderer.h"
+#include <propidl.h>
+#include <cmath>
 
 Renderer::Renderer() = default;
 
@@ -7,11 +9,9 @@ Renderer::~Renderer() {
 }
 
 bool Renderer::Init(HWND hwnd, int width, int height) {
-    // 1. Создаем Direct2D фабрику
     HRESULT hr = D2D1CreateFactory(D2D1_FACTORY_TYPE_SINGLE_THREADED, &m_pFactory);
     if (FAILED(hr)) return false;
 
-    // 2. Создаем WIC фабрику для чтения картинок
     hr = CoCreateInstance(
         CLSID_WICImagingFactory,
         nullptr,
@@ -20,7 +20,6 @@ bool Renderer::Init(HWND hwnd, int width, int height) {
     );
     if (FAILED(hr)) return false;
 
-    // 3. Создаем RenderTarget
     hr = m_pFactory->CreateHwndRenderTarget(
         D2D1::RenderTargetProperties(),
         D2D1::HwndRenderTargetProperties(hwnd, D2D1::SizeU(width, height)),
@@ -44,11 +43,7 @@ ID2D1Bitmap* Renderer::LoadBitmapFromFile(const std::wstring& filePath) {
 
     IWICBitmapDecoder* pDecoder = nullptr;
     HRESULT hr = m_pWicFactory->CreateDecoderFromFilename(
-        filePath.c_str(),
-        nullptr,
-        GENERIC_READ,
-        WICDecodeMetadataCacheOnLoad,
-        &pDecoder
+        filePath.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &pDecoder
     );
     if (FAILED(hr)) return nullptr;
 
@@ -60,14 +55,8 @@ ID2D1Bitmap* Renderer::LoadBitmapFromFile(const std::wstring& filePath) {
     hr = m_pWicFactory->CreateFormatConverter(&pConverter);
     if (FAILED(hr)) { pFrame->Release(); pDecoder->Release(); return nullptr; }
 
-    // Конвертируем в 32bpp PBGRA (нативный формат для Direct2D с прозрачностью)
     hr = pConverter->Initialize(
-        pFrame,
-        GUID_WICPixelFormat32bppPBGRA,
-        WICBitmapDitherTypeNone,
-        nullptr,
-        0.0f,
-        WICBitmapPaletteTypeCustom
+        pFrame, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom
     );
 
     ID2D1Bitmap* pD2DBitmap = nullptr;
@@ -79,6 +68,65 @@ ID2D1Bitmap* Renderer::LoadBitmapFromFile(const std::wstring& filePath) {
     pFrame->Release();
     pDecoder->Release();
     return pD2DBitmap;
+}
+
+AnimatedGif Renderer::LoadGifFromFile(const std::wstring& filePath) {
+    AnimatedGif gif;
+    if (!m_pWicFactory || !m_pRenderTarget) return gif;
+
+    IWICBitmapDecoder* pDecoder = nullptr;
+    HRESULT hr = m_pWicFactory->CreateDecoderFromFilename(
+        filePath.c_str(), nullptr, GENERIC_READ, WICDecodeMetadataCacheOnLoad, &pDecoder
+    );
+    if (FAILED(hr)) return gif;
+
+    UINT frameCount = 0;
+    hr = pDecoder->GetFrameCount(&frameCount);
+    if (FAILED(hr) || frameCount == 0) {
+        pDecoder->Release();
+        return gif;
+    }
+
+    for (UINT i = 0; i < frameCount; ++i) {
+        IWICBitmapFrameDecode* pFrame = nullptr;
+        if (FAILED(pDecoder->GetFrame(i, &pFrame))) continue;
+
+        // Читаем задержку кадра из метаданных GIF (/grctlext/Delay)
+        float frameDelay = 0.05f; // Дефолт: 20 FPS
+        IWICMetadataQueryReader* pMetadata = nullptr;
+        if (SUCCEEDED(pFrame->GetMetadataQueryReader(&pMetadata))) {
+            PROPVARIANT prop;
+            PropVariantInit(&prop);
+            if (SUCCEEDED(pMetadata->GetMetadataByName(L"/grctlext/Delay", &prop))) {
+                if (prop.vt == VT_UI2) {
+                    frameDelay = prop.uiVal * 0.01f; // В GIF задержка в сотых долях секунды
+                    if (frameDelay < 0.02f) frameDelay = 0.05f; // Защита от нулевой задержки
+                }
+                PropVariantClear(&prop);
+            }
+            pMetadata->Release();
+        }
+
+        // Конвертируем кадр в Direct2D битмап
+        IWICFormatConverter* pConverter = nullptr;
+        if (SUCCEEDED(m_pWicFactory->CreateFormatConverter(&pConverter))) {
+            if (SUCCEEDED(pConverter->Initialize(
+                pFrame, GUID_WICPixelFormat32bppPBGRA, WICBitmapDitherTypeNone, nullptr, 0.0f, WICBitmapPaletteTypeCustom
+            ))) {
+                ID2D1Bitmap* pBitmap = nullptr;
+                if (SUCCEEDED(m_pRenderTarget->CreateBitmapFromWicBitmap(pConverter, nullptr, &pBitmap))) {
+                    gif.frames.push_back(pBitmap);
+                    gif.frameDelays.push_back(frameDelay);
+                    gif.totalDuration += frameDelay;
+                }
+            }
+            pConverter->Release();
+        }
+        pFrame->Release();
+    }
+
+    pDecoder->Release();
+    return gif;
 }
 
 void Renderer::BeginDraw() {
@@ -109,9 +157,7 @@ void Renderer::DrawParticleDot(const Particle& p) {
     m_pBrush->SetColor(D2D1::ColorF(r, g, b, a));
 
     D2D1_ELLIPSE ellipse = D2D1::Ellipse(
-        D2D1::Point2F(p.x, p.y),
-        currentRadius,
-        currentRadius
+        D2D1::Point2F(p.x, p.y), currentRadius, currentRadius
     );
     m_pRenderTarget->FillEllipse(ellipse, m_pBrush);
 }
@@ -123,21 +169,47 @@ void Renderer::DrawParticleSprite(const Particle& p, ID2D1Bitmap* pBitmap) {
     float currentRadius = p.startRadius + t * (p.endRadius - p.startRadius);
     if (currentRadius <= 0.1f) return;
 
-    // Альфа-затухание со временем жизни
     float alpha = p.life / p.maxLife;
 
     D2D1_RECT_F destRect = D2D1::RectF(
-        p.x - currentRadius,
-        p.y - currentRadius,
-        p.x + currentRadius,
-        p.y + currentRadius
+        p.x - currentRadius, p.y - currentRadius, p.x + currentRadius, p.y + currentRadius
     );
 
     m_pRenderTarget->DrawBitmap(
-        pBitmap,
-        destRect,
-        alpha,
-        D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
-        nullptr
+        pBitmap, destRect, alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, nullptr
+    );
+}
+
+void Renderer::DrawParticleGif(const Particle& p, const AnimatedGif& gif) {
+    if (!m_pRenderTarget || gif.frames.empty()) return;
+
+    float t = 1.0f - (p.life / p.maxLife);
+    float currentRadius = p.startRadius + t * (p.endRadius - p.startRadius);
+    if (currentRadius <= 0.1f) return;
+
+    float alpha = p.life / p.maxLife;
+
+    // Вычисляем нужный кадр по времени жизни
+    size_t currentFrame = 0;
+    if (gif.totalDuration > 0.001f) {
+        float curTime = std::fmod(p.animTime, gif.totalDuration);
+        float accum = 0.0f;
+        for (size_t i = 0; i < gif.frames.size(); ++i) {
+            accum += gif.frameDelays[i];
+            if (curTime <= accum) {
+                currentFrame = i;
+                break;
+            }
+        }
+    }
+
+    ID2D1Bitmap* pCurrentBitmap = gif.frames[currentFrame];
+
+    D2D1_RECT_F destRect = D2D1::RectF(
+        p.x - currentRadius, p.y - currentRadius, p.x + currentRadius, p.y + currentRadius
+    );
+
+    m_pRenderTarget->DrawBitmap(
+        pCurrentBitmap, destRect, alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, nullptr
     );
 }

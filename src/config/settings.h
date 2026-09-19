@@ -9,22 +9,19 @@ struct ColorRGBA {
 };
 
 struct Settings {
-    // --- Режимы и скины ---
     std::string activeSkin = "default";
-    std::string mode = "dot";              // "dot" или "sprite"
-    std::string spriteFile = "texture.png";// Картинка в папке ~/.cureff/
+    std::string mode = "dot";              // "dot", "sprite" или "gif"
+    std::string spriteFile = "texture.png";
+    std::string gifFile = "animation.gif"; // <-- Имя GIF-файла
 
-    // --- Общие ---
     float maxFps = 120.0f;
     bool trailEnabled = true;
     float stepDistance = 6.0f;
     float particleLife = 0.45f;
 
-    // --- Размеры ---
-    float startRadius = 16.0f;
+    float startRadius = 20.0f;
     float endRadius = 0.0f;
 
-    // --- Цвета и градиент (для Dot) ---
     ColorRGBA startColor = { 0.0f, 0.8f, 1.0f, 1.0f };
     ColorRGBA endColor   = { 0.0f, 0.0f, 0.8f, 1.0f };
 };

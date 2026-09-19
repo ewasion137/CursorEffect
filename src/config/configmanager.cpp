@@ -41,6 +41,7 @@ void ConfigManager::Save(const Settings& s) {
     file << "max_fps = " << s.maxFps << "\n";
     file << "trail_enabled = " << (s.trailEnabled ? "true" : "false") << "\n";
     file << "step_distance = " << s.stepDistance << "\n";
+    file << "gif_file = " << s.gifFile << "\n";
     file << "particle_life = " << s.particleLife << "\n";
     file << "start_radius = " << s.startRadius << "\n";
     file << "end_radius = " << s.endRadius << "\n";
@@ -70,6 +71,7 @@ Settings ConfigManager::Load() {
             }
             else if (key == "step_distance") is_line >> s.stepDistance;
             else if (key == "particle_life") is_line >> s.particleLife;
+            else if (key == "gif_file") is_line >> s.gifFile;
             else if (key == "start_radius") is_line >> s.startRadius;
             else if (key == "end_radius") is_line >> s.endRadius;
             else if (key == "start_color") {

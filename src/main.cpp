@@ -6,7 +6,6 @@
 #include <objbase.h>
 
 int main() {
-    // Инициализация COM для WIC
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
     ConfigManager::Init();
@@ -24,11 +23,16 @@ int main() {
         return -1;
     }
 
-    // Загружаем картинку, если режим "sprite"
+    // Ресурсы
     ID2D1Bitmap* pSpriteBitmap = nullptr;
+    AnimatedGif gifAnimation;
+
     if (settings.mode == "sprite") {
-        std::filesystem::path texturePath = ConfigManager::GetConfigDir() / settings.spriteFile;
-        pSpriteBitmap = renderer.LoadBitmapFromFile(texturePath.wstring());
+        std::filesystem::path path = ConfigManager::GetConfigDir() / settings.spriteFile;
+        pSpriteBitmap = renderer.LoadBitmapFromFile(path.wstring());
+    } else if (settings.mode == "gif") {
+        std::filesystem::path path = ConfigManager::GetConfigDir() / settings.gifFile;
+        gifAnimation = renderer.LoadGifFromFile(path.wstring());
     }
 
     ParticleSystem particleSystem(settings);
@@ -66,7 +70,9 @@ int main() {
         // Отрисовка
         renderer.BeginDraw();
         for (const auto& particle : particleSystem.GetParticles()) {
-            if (settings.mode == "sprite" && pSpriteBitmap) {
+            if (settings.mode == "gif" && !gifAnimation.frames.empty()) {
+                renderer.DrawParticleGif(particle, gifAnimation);
+            } else if (settings.mode == "sprite" && pSpriteBitmap) {
                 renderer.DrawParticleSprite(particle, pSpriteBitmap);
             } else {
                 renderer.DrawParticleDot(particle);
@@ -79,6 +85,7 @@ int main() {
         Sleep(sleepMs);
     }
 
+    gifAnimation.Cleanup();
     if (pSpriteBitmap) pSpriteBitmap->Release();
     renderer.Cleanup();
     CoUninitialize();

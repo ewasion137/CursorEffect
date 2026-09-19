@@ -40,8 +40,9 @@ void ParticleSystem::SpawnTrail(float fromX, float fromY, float toX, float toY) 
 void ParticleSystem::Update(float dt) {
     for (size_t i = 0; i < m_particles.size();) {
         m_particles[i].life -= dt;
+        m_particles[i].animTime += dt; // Увеличиваем таймер анимации
+
         if (m_particles[i].life <= 0.0f) {
-            // Быстрое удаление за O(1) через swap с последним элементом
             m_particles[i] = m_particles.back();
             m_particles.pop_back();
         } else {

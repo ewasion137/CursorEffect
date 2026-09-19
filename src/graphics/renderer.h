@@ -3,7 +3,24 @@
 #include <d2d1.h>
 #include <wincodec.h>
 #include <string>
+#include <vector>
 #include "../particles/Particle.h"
+
+// Контейнер для разобранной гифки
+struct AnimatedGif {
+    std::vector<ID2D1Bitmap*> frames;     // Все кадры на видеокарте
+    std::vector<float> frameDelays;       // Задержка каждого кадра в секундах
+    float totalDuration = 0.0f;           // Длительность полного круга
+
+    void Cleanup() {
+        for (auto* f : frames) {
+            if (f) f->Release();
+        }
+        frames.clear();
+        frameDelays.clear();
+        totalDuration = 0.0f;
+    }
+};
 
 class Renderer {
 public:
@@ -16,14 +33,12 @@ public:
     void BeginDraw();
     void EndDraw();
 
-    // Загрузка текстуры через WIC
     ID2D1Bitmap* LoadBitmapFromFile(const std::wstring& filePath);
+    AnimatedGif LoadGifFromFile(const std::wstring& filePath); // <-- Загрузка GIF
 
-    // Отрисовка точки
     void DrawParticleDot(const Particle& p);
-
-    // Отрисовка спрайта/картинки
     void DrawParticleSprite(const Particle& p, ID2D1Bitmap* pBitmap);
+    void DrawParticleGif(const Particle& p, const AnimatedGif& gif); // <-- Отрисовка кадра GIF
 
 private:
     ID2D1Factory*          m_pFactory = nullptr;
