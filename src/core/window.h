@@ -1,0 +1,26 @@
+#pragma once
+#include <windows.h>
+
+class Window {
+public:
+    Window();
+    ~Window();
+
+    bool Init();
+    void PollEvents(bool& running);
+
+    HWND GetHwnd() const { return m_hwnd; }
+    int GetX() const { return m_screenX; }
+    int GetY() const { return m_screenY; }
+    int GetWidth() const { return m_screenW; }
+    int GetHeight() const { return m_screenH; }
+
+private:
+    static LRESULT CALLBACK StaticWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam);
+
+    HWND m_hwnd = nullptr;
+    int m_screenX = 0;
+    int m_screenY = 0;
+    int m_screenW = 0;
+    int m_screenH = 0;
+};
