@@ -9,11 +9,10 @@ struct ColorRGBA {
 };
 
 struct Settings {
-    // --- Режим работы ---
-    // "dot" = классическая геометрическая точка
-    // "sprite" = картинка PNG/JPG
-    std::string mode = "dot";
-    std::string spriteFile = "texture.png"; // Имя файла в папке ~/.cureff/
+    // --- Режимы и скины ---
+    std::string activeSkin = "default";
+    std::string mode = "dot";              // "dot" или "sprite"
+    std::string spriteFile = "texture.png";// Картинка в папке ~/.cureff/
 
     // --- Общие ---
     float maxFps = 120.0f;
@@ -22,10 +21,10 @@ struct Settings {
     float particleLife = 0.45f;
 
     // --- Размеры ---
-    float startRadius = 16.0f; // Для спрайта это половина ширины (радиус)
+    float startRadius = 16.0f;
     float endRadius = 0.0f;
 
-    // --- Цвет и градиент (для Dot) ---
+    // --- Цвета и градиент (для Dot) ---
     ColorRGBA startColor = { 0.0f, 0.8f, 1.0f, 1.0f };
     ColorRGBA endColor   = { 0.0f, 0.0f, 0.8f, 1.0f };
 };

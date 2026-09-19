@@ -3,7 +3,6 @@
 #include <shlobj.h>
 #include <fstream>
 #include <sstream>
-#include <iostream>
 
 std::filesystem::path ConfigManager::GetConfigDir() {
     wchar_t path[MAX_PATH];
@@ -37,16 +36,14 @@ void ConfigManager::Save(const Settings& s) {
 
     file << "# CursorEffect Configuration\n\n";
     file << "active_skin = " << s.activeSkin << "\n";
+    file << "mode = " << s.mode << "\n";
+    file << "sprite_file = " << s.spriteFile << "\n";
     file << "max_fps = " << s.maxFps << "\n";
     file << "trail_enabled = " << (s.trailEnabled ? "true" : "false") << "\n";
     file << "step_distance = " << s.stepDistance << "\n";
     file << "particle_life = " << s.particleLife << "\n";
     file << "start_radius = " << s.startRadius << "\n";
     file << "end_radius = " << s.endRadius << "\n";
-    file << "mode = " << s.mode << "\n";
-    file << "sprite_file = " << s.spriteFile << "\n";
-    
-    // Сохраняем начальный и конечный цвет для градиента (R G B A)
     file << "start_color = " << s.startColor.r << " " << s.startColor.g << " " << s.startColor.b << " " << s.startColor.a << "\n";
     file << "end_color = " << s.endColor.r << " " << s.endColor.g << " " << s.endColor.b << " " << s.endColor.a << "\n";
 }
@@ -58,13 +55,14 @@ Settings ConfigManager::Load() {
 
     std::string line;
     while (std::getline(file, line)) {
-        // Пропуск комментариев и пустых строк
         if (line.empty() || line[0] == '#') continue;
 
         std::istringstream is_line(line);
         std::string key, eq;
         if (is_line >> key >> eq && eq == "=") {
             if (key == "active_skin") is_line >> s.activeSkin;
+            else if (key == "mode") is_line >> s.mode;
+            else if (key == "sprite_file") is_line >> s.spriteFile;
             else if (key == "max_fps") is_line >> s.maxFps;
             else if (key == "trail_enabled") {
                 std::string val; is_line >> val;
@@ -74,8 +72,6 @@ Settings ConfigManager::Load() {
             else if (key == "particle_life") is_line >> s.particleLife;
             else if (key == "start_radius") is_line >> s.startRadius;
             else if (key == "end_radius") is_line >> s.endRadius;
-            if (key == "mode") is_line >> s.mode;
-            else if (key == "sprite_file") is_line >> s.spriteFile;
             else if (key == "start_color") {
                 is_line >> s.startColor.r >> s.startColor.g >> s.startColor.b >> s.startColor.a;
             }
