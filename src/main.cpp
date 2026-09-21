@@ -115,13 +115,13 @@ int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, PWSTR 
     tray.onAbout = [&]() {
         MessageBoxW(
             window.GetHwnd(),
-            L"CursorEffect v1.1\n\n"
+            L"CursorEffect 1.0\n\n"
             L"Custom particle trails and animated skins for mouse cursor.\n"
-            L"• GIF animations, sprites, and Robux curves support\n"
+            L"• Supports GIF animations, sprites and curves\n"
             L"• Real-time config hot-reloading\n"
             L"• System tray integration\n\n"
             L"Config directory: %USERPROFILE%\\.cureff\n"
-            L"Author: ewasion",
+            L"Author: ewasion137",
             L"About CursorEffect",
             MB_OK | MB_ICONINFORMATION
         );

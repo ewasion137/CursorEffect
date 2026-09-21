@@ -194,7 +194,7 @@ void TrayManager::ShowContextMenu(HWND hwnd) {
     if (!hMenu) return;
 
     // Header title
-    AppendMenuW(hMenu, MF_STRING | MF_DISABLED, IDM_TITLE, L"CursorEffect");
+    AppendMenuW(hMenu, MF_STRING | MF_DISABLED, IDM_TITLE, L"CursorEffect 1.0");
     AppendMenuW(hMenu, MF_SEPARATOR, 0, nullptr);
 
     // Trail toggle
