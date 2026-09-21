@@ -17,6 +17,9 @@ void ParticleSystem::SpawnTrail(float fromX, float fromY, float toX, float toY) 
     float dy = toY - fromY;
     float dist = std::sqrt(dx * dx + dy * dy);
 
+    // Вычисляем угол полета
+    float angle = std::atan2(dy, dx);
+
     float step = (m_settings.stepDistance > 1.0f) ? m_settings.stepDistance : 1.0f;
     int count = static_cast<int>(dist / step);
     if (count == 0) count = 1;
@@ -32,6 +35,7 @@ void ParticleSystem::SpawnTrail(float fromX, float fromY, float toX, float toY) 
         p.endRadius = m_settings.endRadius;
         p.startColor = m_settings.startColor;
         p.endColor = m_settings.endColor;
+        p.angle = angle; // Сохраняем угол
 
         m_particles.push_back(p);
     }

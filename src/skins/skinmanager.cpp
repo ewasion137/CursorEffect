@@ -45,16 +45,16 @@ Skin SkinManager::LoadSkin(const std::filesystem::path& skinFolder) {
     return skin;
 }
 
-void SkinManager::CreateDefaultRobloxSkin(const std::filesystem::path& skinsDir) {
-    auto robloxDir = skinsDir / "roblox_error";
-    if (!std::filesystem::exists(robloxDir)) {
-        std::filesystem::create_directories(robloxDir);
+void SkinManager::CreateDefaultSkin(const std::filesystem::path& skinsDir) {
+    auto Dir = skinsDir / "error";
+    if (!std::filesystem::exists(Dir)) {
+        std::filesystem::create_directories(Dir);
     }
 
-    auto cfgPath = robloxDir / "skin.cfg";
+    auto cfgPath = Dir / "skin.cfg";
     if (!std::filesystem::exists(cfgPath)) {
         std::ofstream file(cfgPath);
-        file << "# Roblox Error Skin Config\n";
+        file << "# Error Skin Config\n";
         file << "type = gif\n";
         file << "file = animation.gif\n";
         file << "base_size = 35.0\n";

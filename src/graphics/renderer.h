@@ -5,6 +5,7 @@
 #include <string>
 #include <vector>
 #include "../particles/Particle.h"
+#include "../skins/Skin.h"
 
 // Контейнер для разобранной гифки
 struct AnimatedGif {
@@ -33,12 +34,13 @@ public:
     void BeginDraw();
     void EndDraw();
 
+
     ID2D1Bitmap* LoadBitmapFromFile(const std::wstring& filePath);
     AnimatedGif LoadGifFromFile(const std::wstring& filePath); // <-- Загрузка GIF
 
     void DrawParticleDot(const Particle& p);
     void DrawParticleSprite(const Particle& p, ID2D1Bitmap* pBitmap);
-    void DrawParticleGif(const Particle& p, const AnimatedGif& gif); // <-- Отрисовка кадра GIF
+    void DrawParticleGif(const Particle& p, const AnimatedGif& gif, const Skin& skin); // <-- Отрисовка кадра GIF
 
 private:
     ID2D1Factory*          m_pFactory = nullptr;

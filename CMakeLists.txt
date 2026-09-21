@@ -14,6 +14,7 @@ set(SOURCES
     src/core/Window.cpp
     src/graphics/Renderer.cpp
     src/particles/ParticleSystem.cpp
+    src/skins/SkinManager.cpp
 )
 
 add_executable(CursorEffect ${SOURCES})

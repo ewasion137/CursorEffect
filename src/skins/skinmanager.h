@@ -6,5 +6,5 @@
 class SkinManager {
 public:
     static Skin LoadSkin(const std::filesystem::path& skinFolder);
-    static void CreateDefaultRobloxSkin(const std::filesystem::path& skinsDir);
+    static void CreateDefaultSkin(const std::filesystem::path& skinsDir);
 };

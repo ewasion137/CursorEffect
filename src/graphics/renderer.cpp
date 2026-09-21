@@ -180,16 +180,36 @@ void Renderer::DrawParticleSprite(const Particle& p, ID2D1Bitmap* pBitmap) {
     );
 }
 
-void Renderer::DrawParticleGif(const Particle& p, const AnimatedGif& gif) {
+void Renderer::DrawParticleGif(const Particle& p, const AnimatedGif& gif, const Skin& skin) {
     if (!m_pRenderTarget || gif.frames.empty()) return;
 
+    // t от 0.0 (рождение) до 1.0 (смерть)
     float t = 1.0f - (p.life / p.maxLife);
-    float currentRadius = p.startRadius + t * (p.endRadius - p.startRadius);
-    if (currentRadius <= 0.1f) return;
-
     float alpha = p.life / p.maxLife;
 
-    // Вычисляем нужный кадр по времени жизни
+    // 1. Вычисляем размер по кривой Роблокса (или по дефолту)
+    float currentSize = skin.baseSize;
+    if (skin.hasSizeCurve) {
+        float sizeFactor = skin.sizeCurve.Evaluate(t);
+        currentSize = skin.baseSize * sizeFactor;
+    } else {
+        currentSize = p.startRadius + t * (p.endRadius - p.startRadius);
+    }
+    if (currentSize <= 0.5f) return;
+
+    // 2. Вычисляем Squash (сплющивание) по кривой Роблокса
+    float squash = 0.0f;
+    if (skin.hasSquashCurve) {
+        squash = skin.squashCurve.Evaluate(t);
+    }
+
+    // Squash & Stretch коэффициенты
+    float scaleX = (1.0f + squash);
+    float scaleY = (1.0f - squash);
+    if (scaleX < 0.05f) scaleX = 0.05f;
+    if (scaleY < 0.05f) scaleY = 0.05f;
+
+    // 3. Вычисляем кадр гифки
     size_t currentFrame = 0;
     if (gif.totalDuration > 0.001f) {
         float curTime = std::fmod(p.animTime, gif.totalDuration);
@@ -203,13 +223,38 @@ void Renderer::DrawParticleGif(const Particle& p, const AnimatedGif& gif) {
         }
     }
 
-    ID2D1Bitmap* pCurrentBitmap = gif.frames[currentFrame];
+    ID2D1Bitmap* pBitmap = gif.frames[currentFrame];
+    D2D1_SIZE_F bmpSize = pBitmap->GetSize();
+
+    // 4. GPU-матрица: Масштаб + Сплющивание -> Поворот по вектору мыши -> Перемещение в точку (x, y)
+    float angleDeg = skin.alignToMotion ? (p.angle * 180.0f / 3.14159265f) : 0.0f;
+
+    D2D1::Matrix3x2F transform =
+        D2D1::Matrix3x2F::Scale(
+            (currentSize / (bmpSize.width * 0.5f)) * scaleX,
+            (currentSize / (bmpSize.height * 0.5f)) * scaleY,
+            D2D1::Point2F(0, 0)
+        ) *
+        D2D1::Matrix3x2F::Rotation(angleDeg, D2D1::Point2F(0, 0)) *
+        D2D1::Matrix3x2F::Translation(p.x, p.y);
+
+    m_pRenderTarget->SetTransform(transform);
 
     D2D1_RECT_F destRect = D2D1::RectF(
-        p.x - currentRadius, p.y - currentRadius, p.x + currentRadius, p.y + currentRadius
+        -bmpSize.width * 0.5f,
+        -bmpSize.height * 0.5f,
+         bmpSize.width * 0.5f,
+         bmpSize.height * 0.5f
     );
 
     m_pRenderTarget->DrawBitmap(
-        pCurrentBitmap, destRect, alpha, D2D1_BITMAP_INTERPOLATION_MODE_LINEAR, nullptr
+        pBitmap,
+        destRect,
+        alpha,
+        D2D1_BITMAP_INTERPOLATION_MODE_LINEAR,
+        nullptr
     );
+
+    // Сбрасываем матрицу в единичную
+    m_pRenderTarget->SetTransform(D2D1::Matrix3x2F::Identity());
 }
