@@ -1,69 +1,86 @@
 #include "SkinManager.h"
 #include <fstream>
 #include <sstream>
+#include <algorithm>
+#include <cctype>
+
+namespace {
+    std::string Trim(const std::string& str) {
+        size_t first = str.find_first_not_of(" \t\r\n");
+        if (first == std::string::npos) return "";
+        size_t last = str.find_last_not_of(" \t\r\n");
+        return str.substr(first, (last - first + 1));
+    }
+
+    std::string ToLower(std::string s) {
+        std::transform(s.begin(), s.end(), s.begin(), [](unsigned char c) {
+            return static_cast<char>(std::tolower(c));
+        });
+        return s;
+    }
+}
 
 Skin SkinManager::LoadSkin(const std::filesystem::path& skinFolder) {
     Skin skin;
-    skin.name = skinFolder.filename().string();
     skin.folderPath = skinFolder;
+    skin.name = skinFolder.filename().string();
+    skin.type = "dot"; // По умолчанию надежный режим точек
+
+    std::error_code ec;
+    if (!std::filesystem::exists(skinFolder, ec)) {
+        return skin;
+    }
 
     std::filesystem::path cfgPath = skinFolder / "skin.cfg";
     std::ifstream file(cfgPath);
-    if (!file.is_open()) return skin;
+    if (!file.is_open()) {
+        // Если файла нет, проверим наличие анимации или спрайта в папке
+        if (std::filesystem::exists(skinFolder / "animation.gif", ec)) {
+            skin.type = "gif";
+            skin.file = "animation.gif";
+        } else if (std::filesystem::exists(skinFolder / "texture.png", ec)) {
+            skin.type = "sprite";
+            skin.file = "texture.png";
+        }
+        return skin;
+    }
 
     std::string line;
     while (std::getline(file, line)) {
-        if (line.empty() || line[0] == '#') continue;
+        line = Trim(line);
+        if (line.empty() || line[0] == '#' || line[0] == ';') continue;
+        if (line.rfind("//", 0) == 0) continue;
 
         auto eqPos = line.find('=');
         if (eqPos == std::string::npos) continue;
 
-        std::string key = line.substr(0, eqPos);
-        std::string val = line.substr(eqPos + 1);
+        std::string key = ToLower(Trim(line.substr(0, eqPos)));
+        std::string val = Trim(line.substr(eqPos + 1));
 
-        // Убираем пробелы
-        key.erase(0, key.find_first_not_of(" \t"));
-        key.erase(key.find_last_not_of(" \t") + 1);
-        val.erase(0, val.find_first_not_of(" \t"));
-        val.erase(val.find_last_not_of(" \t") + 1);
-
-        if (key == "type") skin.type = val;
-        else if (key == "file") skin.file = val;
-        else if (key == "base_size") skin.baseSize = std::stof(val);
-        else if (key == "particle_life") skin.particleLife = std::stof(val);
-        else if (key == "step_distance") skin.stepDistance = std::stof(val);
-        else if (key == "align_to_motion") skin.alignToMotion = (val == "true" || val == "1");
-        else if (key == "size_sequence") {
-            skin.sizeCurve = NumberSequence::Parse(val);
-            skin.hasSizeCurve = !skin.sizeCurve.keypoints.empty();
-        }
-        else if (key == "squash_sequence") {
-            skin.squashCurve = NumberSequence::Parse(val);
-            skin.hasSquashCurve = !skin.squashCurve.keypoints.empty();
+        try {
+            if (key == "type") {
+                skin.type = ToLower(val);
+            } else if (key == "file") {
+                skin.file = val;
+            } else if (key == "base_size") {
+                skin.baseSize = std::stof(val);
+            } else if (key == "particle_life") {
+                skin.particleLife = std::stof(val);
+            } else if (key == "step_distance") {
+                skin.stepDistance = std::stof(val);
+            } else if (key == "align_to_motion") {
+                std::string lowVal = ToLower(val);
+                skin.alignToMotion = (lowVal == "true" || lowVal == "1" || lowVal == "yes" || lowVal == "on");
+            } else if (key == "size_sequence") {
+                skin.sizeCurve = NumberSequence::Parse(val);
+                skin.hasSizeCurve = !skin.sizeCurve.keypoints.empty();
+            } else if (key == "squash_sequence") {
+                skin.squashCurve = NumberSequence::Parse(val);
+                skin.hasSquashCurve = !skin.squashCurve.keypoints.empty();
+            }
+        } catch (...) {
+            // Игнорируем некорректные строки без падения
         }
     }
     return skin;
-}
-
-void SkinManager::CreateDefaultSkin(const std::filesystem::path& skinsDir) {
-    auto Dir = skinsDir / "error";
-    if (!std::filesystem::exists(Dir)) {
-        std::filesystem::create_directories(Dir);
-    }
-
-    auto cfgPath = Dir / "skin.cfg";
-    if (!std::filesystem::exists(cfgPath)) {
-        std::ofstream file(cfgPath);
-        file << "# Error Skin Config\n";
-        file << "type = gif\n";
-        file << "file = animation.gif\n";
-        file << "base_size = 35.0\n";
-        file << "particle_life = 0.65\n";
-        file << "step_distance = 7.0\n";
-        file << "align_to_motion = true\n\n";
-
-        // Твои оригинальные строки из Роблокса!
-        file << "size_sequence = 0 0 0 0.495982 0.75 0.75 1 0.5625 0\n";
-        file << "squash_sequence = 0 0 0 0.49713 -0.0749998 0.6375 1 0 0\n";
-    }
 }

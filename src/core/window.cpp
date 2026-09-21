@@ -4,11 +4,20 @@ Window::Window() = default;
 
 Window::~Window() {
     if (m_hwnd) {
+        SetWindowLongPtrW(m_hwnd, GWLP_USERDATA, 0);
         DestroyWindow(m_hwnd);
+        m_hwnd = nullptr;
     }
 }
 
 LRESULT CALLBACK Window::StaticWindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    Window* pWindow = reinterpret_cast<Window*>(GetWindowLongPtrW(hwnd, GWLP_USERDATA));
+    if (pWindow && pWindow->m_msgHandler) {
+        if (pWindow->m_msgHandler(hwnd, uMsg, wParam, lParam)) {
+            return 0;
+        }
+    }
+
     if (uMsg == WM_DESTROY) {
         PostQuitMessage(0);
         return 0;
@@ -42,6 +51,8 @@ bool Window::Init() {
     );
 
     if (!m_hwnd) return false;
+
+    SetWindowLongPtrW(m_hwnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
 
     // Ключ прозрачности: черные пиксели окна становятся прозрачным сквозным холстом
     SetLayeredWindowAttributes(m_hwnd, RGB(0, 0, 0), 0, LWA_COLORKEY);

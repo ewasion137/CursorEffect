@@ -3,63 +3,154 @@
 #include "graphics/Renderer.h"
 #include "particles/ParticleSystem.h"
 #include "skins/SkinManager.h"
+#include "ui/TrayManager.h"
 #include <chrono>
 #include <objbase.h>
+#include <shellapi.h>
 
-int main() {
+int WINAPI wWinMain(HINSTANCE /*hInstance*/, HINSTANCE /*hPrevInstance*/, PWSTR /*lpCmdLine*/, int /*nShowCmd*/) {
     CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
 
-    // 1. Инициализация и загрузка глобального конфига
+    // 1. Initialize configuration folder (~/.cureff) and load settings
     ConfigManager::Init();
     Settings settings = ConfigManager::Load();
 
-    // 2. Загрузка активного скина из папки ~/.cureff/skins/<active_skin>/
-    std::filesystem::path skinPath = ConfigManager::GetConfigDir() / "skins" / settings.activeSkin;
-    Skin activeSkin = SkinManager::LoadSkin(skinPath);
-
-    // Если в конфиге скина заданы свои параметры — переопределяем их
-    if (activeSkin.particleLife > 0.0f) settings.particleLife = activeSkin.particleLife;
-    if (activeSkin.stepDistance > 0.0f) settings.stepDistance = activeSkin.stepDistance;
-    if (activeSkin.baseSize > 0.0f)     settings.startRadius = activeSkin.baseSize;
-
-    // 3. Создаем окно
+    // 2. Create the transparent overlay window
     Window window;
     if (!window.Init()) {
         CoUninitialize();
         return -1;
     }
 
-    // 4. Инициализация рендера
+    // 3. Initialize Direct2D renderer
     Renderer renderer;
     if (!renderer.Init(window.GetHwnd(), window.GetWidth(), window.GetHeight())) {
         CoUninitialize();
         return -1;
     }
 
-    // 5. Загрузка ресурсов скина
+    // 4. Initialize system tray with logo
+    TrayManager tray;
+    std::filesystem::path logoPath = std::filesystem::current_path() / "logo.png";
+    tray.Init(window.GetHwnd(), logoPath.wstring());
+
+    bool running = true;
+
+    // Skin resources
+    Skin activeSkin;
     AnimatedGif skinGif;
     ID2D1Bitmap* pSpriteBitmap = nullptr;
+    Settings effectiveSettings = settings;
 
-    if (activeSkin.type == "gif") {
-        std::filesystem::path gifPath = skinPath / activeSkin.file;
-        skinGif = renderer.LoadGifFromFile(gifPath.wstring());
-    } else if (activeSkin.type == "sprite") {
-        std::filesystem::path spritePath = skinPath / activeSkin.file;
-        pSpriteBitmap = renderer.LoadBitmapFromFile(spritePath.wstring());
-    }
+    // Safe and smooth skin reloading routine
+    auto reloadActiveSkin = [&](const std::string& skinName) {
+        skinGif.Cleanup();
+        if (pSpriteBitmap) {
+            pSpriteBitmap->Release();
+            pSpriteBitmap = nullptr;
+        }
 
-    // 6. Инициализация системы частиц
-    ParticleSystem particleSystem(settings);
+        effectiveSettings = settings;
+        activeSkin = Skin();
+
+        if (skinName.empty() || skinName == "default") {
+            activeSkin.name = "default";
+            activeSkin.type = "dot";
+            return;
+        }
+
+        std::filesystem::path skinPath = ConfigManager::GetSkinsDir() / skinName;
+        if (std::filesystem::exists(skinPath)) {
+            activeSkin = SkinManager::LoadSkin(skinPath);
+
+            if (activeSkin.type == "gif" && !activeSkin.file.empty()) {
+                skinGif = renderer.LoadGifFromFile((skinPath / activeSkin.file).wstring());
+            } else if (activeSkin.type == "sprite" && !activeSkin.file.empty()) {
+                pSpriteBitmap = renderer.LoadBitmapFromFile((skinPath / activeSkin.file).wstring());
+            }
+
+            if (activeSkin.particleLife > 0.0f) effectiveSettings.particleLife = activeSkin.particleLife;
+            if (activeSkin.stepDistance > 0.0f) effectiveSettings.stepDistance = activeSkin.stepDistance;
+            if (activeSkin.baseSize > 0.0f)     effectiveSettings.startRadius = activeSkin.baseSize;
+        } else {
+            activeSkin.name = "default";
+            activeSkin.type = "dot";
+        }
+    };
+
+    reloadActiveSkin(settings.activeSkin);
+
+    // 5. Initialize particle system
+    ParticleSystem particleSystem(effectiveSettings);
+
+    // Bind Tray callbacks
+    tray.getTrailEnabled = [&]() { return settings.trailEnabled; };
+    tray.getActiveSkin   = [&]() { return settings.activeSkin; };
+
+    tray.onToggleTrail = [&](bool enabled) {
+        settings.trailEnabled = enabled;
+        effectiveSettings.trailEnabled = enabled;
+        particleSystem.UpdateSettings(effectiveSettings);
+        ConfigManager::Save(settings);
+    };
+
+    tray.onSelectSkin = [&](const std::string& skinName) {
+        settings.activeSkin = skinName;
+        reloadActiveSkin(skinName);
+        particleSystem.UpdateSettings(effectiveSettings);
+        ConfigManager::Save(settings);
+    };
+
+    tray.onReloadConfig = [&]() {
+        settings = ConfigManager::Load();
+        reloadActiveSkin(settings.activeSkin);
+        particleSystem.UpdateSettings(effectiveSettings);
+        tray.ShowBalloon(L"CursorEffect", L"Configuration reloaded successfully!");
+    };
+
+    tray.onOpenConfigDir = [&]() {
+        ShellExecuteW(NULL, L"open", ConfigManager::GetConfigDir().c_str(), NULL, NULL, SW_SHOWNORMAL);
+    };
+
+    tray.onAbout = [&]() {
+        MessageBoxW(
+            window.GetHwnd(),
+            L"CursorEffect v1.1\n\n"
+            L"Custom particle trails and animated skins for mouse cursor.\n"
+            L"• GIF animations, sprites, and Robux curves support\n"
+            L"• Real-time config hot-reloading\n"
+            L"• System tray integration\n\n"
+            L"Config directory: %USERPROFILE%\\.cureff\n"
+            L"Author: ewasion",
+            L"About CursorEffect",
+            MB_OK | MB_ICONINFORMATION
+        );
+    };
+
+    tray.onExit = [&]() {
+        running = false;
+    };
+
+    // Forward tray messages from overlay window
+    window.SetMessageHandler([&](HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) -> bool {
+        if (uMsg == WM_TRAYICON) {
+            tray.HandleTrayMessage(hwnd, lParam);
+            return true;
+        }
+        return false;
+    });
 
     POINT lastMousePos = { -1, -1 };
     auto lastTime = std::chrono::high_resolution_clock::now();
-    bool running = true;
+    auto lastConfigCheckTime = lastTime;
 
-    // Главный цикл
+    // Main loop
     while (running) {
         window.PollEvents(running);
+        if (!running) break;
 
-        if (GetAsyncKeyState(VK_ESCAPE) & 0x8000) {
+        // Escape exit only if explicitly enabled in user config
+        if (settings.exitOnEscape && (GetAsyncKeyState(VK_ESCAPE) & 0x8000)) {
             break;
         }
 
@@ -67,6 +158,37 @@ int main() {
         float dt = std::chrono::duration<float>(currentTime - lastTime).count();
         lastTime = currentTime;
 
+        // Hot-reload: check file change every 500 ms
+        if (settings.hotReload) {
+            float checkElapsed = std::chrono::duration<float>(currentTime - lastConfigCheckTime).count();
+            if (checkElapsed >= 0.5f) {
+                lastConfigCheckTime = currentTime;
+                if (ConfigManager::HasConfigFileChanged()) {
+                    Settings newSettings = ConfigManager::Load();
+                    bool skinChanged = (newSettings.activeSkin != settings.activeSkin);
+                    settings = newSettings;
+                    if (skinChanged) {
+                        reloadActiveSkin(settings.activeSkin);
+                    } else {
+                        effectiveSettings.maxFps = settings.maxFps;
+                        effectiveSettings.trailEnabled = settings.trailEnabled;
+                        effectiveSettings.startColor = settings.startColor;
+                        effectiveSettings.endColor = settings.endColor;
+                        effectiveSettings.exitOnEscape = settings.exitOnEscape;
+                        effectiveSettings.hotReload = settings.hotReload;
+                        if (activeSkin.name == "default" || activeSkin.type == "dot") {
+                            effectiveSettings.stepDistance = settings.stepDistance;
+                            effectiveSettings.particleLife = settings.particleLife;
+                            effectiveSettings.startRadius = settings.startRadius;
+                            effectiveSettings.endRadius = settings.endRadius;
+                        }
+                    }
+                    particleSystem.UpdateSettings(effectiveSettings);
+                }
+            }
+        }
+
+        // Track cursor
         POINT mousePos;
         GetCursorPos(&mousePos);
 
@@ -84,7 +206,7 @@ int main() {
 
         particleSystem.Update(dt);
 
-        // Отрисовка
+        // Render frame
         renderer.BeginDraw();
         for (const auto& particle : particleSystem.GetParticles()) {
             if (activeSkin.type == "gif" && !skinGif.frames.empty()) {
@@ -97,14 +219,19 @@ int main() {
         }
         renderer.EndDraw();
 
-        int sleepMs = static_cast<int>(1000.0f / settings.maxFps);
+        // Frame rate limiter
+        int sleepMs = static_cast<int>(1000.0f / effectiveSettings.maxFps);
         if (sleepMs < 1) sleepMs = 1;
         Sleep(sleepMs);
     }
 
-    // Очистка
+    // Clean up
+    tray.Remove();
     skinGif.Cleanup();
-    if (pSpriteBitmap) pSpriteBitmap->Release();
+    if (pSpriteBitmap) {
+        pSpriteBitmap->Release();
+        pSpriteBitmap = nullptr;
+    }
     renderer.Cleanup();
     CoUninitialize();
 
